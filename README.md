@@ -5,6 +5,12 @@ A blazing-fast TUI for Android logcat, built in Rust.
 ![1.6MB binary](https://img.shields.io/badge/binary_size-1.6MB-brightgreen)
 ![Rust](https://img.shields.io/badge/built_with-Rust-orange)
 
+## Why?
+
+Agentic coding is on the rise. With the accuracy of AI models like Claude, Codex, GLM and others improving rapidly, a full IDE is no longer necessary at all times. Android Studio is memory-intensive and bulky — but until now, its logcat viewer was the only usable option for Android development.
+
+Enter **colored-logcat**: a terminal-native TUI that brings all the Android Studio logcat functionality — color-coded levels, filtering, crash monitoring, JSON highlighting — without the bulk. Pair it with your AI coding agent and a lightweight editor, and you have everything you need.
+
 ## Features
 
 - **Color-coded log levels** — Verbose, Debug, Info, Warn, Error, Fatal each get distinct colors
