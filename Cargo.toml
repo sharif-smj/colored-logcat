@@ -1,0 +1,18 @@
+[package]
+name = "colored-logcat"
+version = "0.1.0"
+edition = "2021"
+description = "A blazing-fast TUI for Android logcat"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
+regex = "1"
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+codegen-units = 1
