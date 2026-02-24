@@ -11,6 +11,8 @@ Agentic coding is on the rise. With the accuracy of AI models like Claude, Codex
 
 Enter **colored-logcat**: a terminal-native TUI that brings all the Android Studio logcat functionality — color-coded levels, filtering, crash monitoring, JSON highlighting — without the bulk. Pair it with your AI coding agent and a lightweight editor, and you have everything you need.
 
+![colored-logcat demo](screenshots/colored-logcat-demo.png)
+
 ## Features
 
 - **Color-coded log levels** — Verbose, Debug, Info, Warn, Error, Fatal each get distinct colors
