@@ -90,7 +90,8 @@ impl App {
         }
 
         // Check filter
-        if self.filters.matches(&entry) {
+        let matches_filter = self.filters.matches(&entry);
+        if matches_filter {
             self.filtered_indices.push(idx);
         }
 
@@ -104,6 +105,12 @@ impl App {
             // Drop stale absolute indices; no shifting needed.
             self.filtered_indices.retain(|i| *i >= self.log_base_index);
             self.crash_indices.retain(|i| *i >= self.log_base_index);
+        }
+
+        // Keep paused viewport anchored to the same entries.
+        // Without this, newly appended matching logs shift a paused view forward.
+        if self.scroll_offset > 0 && matches_filter {
+            self.scroll_offset = self.scroll_offset.saturating_add(1);
         }
 
         self.clamp_scroll_offset();
