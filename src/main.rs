@@ -10,7 +10,10 @@ use std::io;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, KeyModifiers,
+    MouseButton, MouseEventKind,
+};
 use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -25,7 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -33,7 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Restore terminal
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
     terminal.show_cursor()?;
 
     if let Err(e) = result {
@@ -61,12 +64,20 @@ fn run_app(
             loop {
                 terminal.draw(|f| ui::render(f, &app))?;
                 if event::poll(Duration::from_millis(100))? {
-                    if let Event::Key(key) = event::read()? {
-                        if key.kind == KeyEventKind::Press
-                            && (key.code == KeyCode::Char('q') || key.code == KeyCode::Esc)
-                        {
-                            return Ok(());
+                    match event::read()? {
+                        Event::Key(key) => {
+                            if key.kind == KeyEventKind::Press
+                                && (key.code == KeyCode::Char('q') || key.code == KeyCode::Esc)
+                            {
+                                return Ok(());
+                            }
                         }
+                        Event::Mouse(mouse) => {
+                            if mouse.kind == MouseEventKind::Down(MouseButton::Right) {
+                                app.scroll_to_bottom();
+                            }
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -112,32 +123,53 @@ fn run_app(
 
         // Handle input events
         if event::poll(Duration::from_millis(16))? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind != KeyEventKind::Press {
-                    continue;
-                }
+            match event::read()? {
+                Event::Key(key) => {
+                    if key.kind != KeyEventKind::Press {
+                        continue;
+                    }
 
-                // Global quit
-                if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c')
-                {
-                    break;
-                }
+                    // Global quit
+                    if key.modifiers.contains(KeyModifiers::CONTROL)
+                        && key.code == KeyCode::Char('c')
+                    {
+                        break;
+                    }
 
-                match app.input_mode {
-                    InputMode::Normal => handle_normal_key(&mut app, key.code),
-                    InputMode::Filter | InputMode::Tag | InputMode::Package => {
-                        handle_input_key(&mut app, key.code);
+                    match app.input_mode {
+                        InputMode::Normal => handle_normal_key(&mut app, key.code),
+                        InputMode::Filter | InputMode::Tag | InputMode::Package => {
+                            handle_input_key(&mut app, key.code);
+                        }
+                    }
+
+                    if app.should_quit {
+                        break;
                     }
                 }
-
-                if app.should_quit {
-                    break;
+                Event::Mouse(mouse) => {
+                    if matches!(app.input_mode, InputMode::Normal) {
+                        handle_mouse(&mut app, mouse.kind);
+                    }
                 }
+                _ => {}
             }
         }
     }
 
     Ok(())
+}
+
+fn handle_mouse(app: &mut App, kind: MouseEventKind) {
+    match kind {
+        // Scroll up to pause and browse older logs.
+        MouseEventKind::ScrollUp => app.scroll_up(3),
+        // Scroll down toward live tailing. At offset 0, stream follows again.
+        MouseEventKind::ScrollDown => app.scroll_down(3),
+        // Quick follow: right-click jumps to bottom and resumes tailing.
+        MouseEventKind::Down(MouseButton::Right) => app.scroll_to_bottom(),
+        _ => {}
+    }
 }
 
 fn handle_normal_key(app: &mut App, key: KeyCode) {

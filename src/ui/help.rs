@@ -19,6 +19,8 @@ const HELP_LINES: &[(&str, &str)] = &[
     ("Space", "Pause / Resume tailing"),
     ("↑/↓ or j/k", "Scroll (when paused)"),
     ("PgUp / PgDn", "Page scroll"),
+    ("Mouse wheel", "Scroll logs (up pauses tailing)"),
+    ("Right click", "Jump to bottom / resume tail"),
     ("Home", "Jump to top"),
     ("End / G", "Jump to bottom / resume tail"),
     ("", ""),

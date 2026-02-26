@@ -63,7 +63,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     }
 
     // Keybind hints (right-aligned via padding)
-    let hints = " ?:help /:filter t:tag p:pkg Space:pause ";
+    let hints = " ?:help /:filter t:tag p:pkg wheel:scroll right-click:follow ";
     let hints_len = hints.len() as u16;
     let spans_text_len: u16 = spans.iter().map(|s| s.content.len() as u16).sum();
     let padding = area.width.saturating_sub(spans_text_len + hints_len);

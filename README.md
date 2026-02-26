@@ -61,6 +61,8 @@ colored-logcat
 | `Space` | Pause / Resume tailing |
 | `j`/`k` or `↑`/`↓` | Scroll (when paused) |
 | `PgUp` / `PgDn` | Page scroll |
+| Mouse wheel | Scroll logs (scroll up pauses tailing) |
+| Right click | Jump to bottom / resume tail |
 | `Home` | Jump to top |
 | `End` / `G` | Jump to bottom / resume tailing |
 | `x` | Toggle crash/ANR panel |

@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd:*)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs",
+      "Bash(adb logcat:*)",
+      "Bash(export:*)",
+      "Bash(export PATH=\"$HOME/.cargo/bin:$PATH\" && cd /c/Users/shins/projects/colored-logcat && cargo init 2>&1)",
+      "Bash(export PATH=\"$HOME/.cargo/bin:$PATH\" && cd /c/Users/shins/projects/colored-logcat && cargo build 2>&1)",
+      "Bash(export PATH=\"$HOME/.cargo/bin:$PATH\" && rustup target add x86_64-pc-windows-gnu 2>&1 && rustup default stable-x86_64-pc-windows-gnu 2>&1)",
+      "Bash(export PATH=\"$HOME/.cargo/bin:$PATH\" && cd /c/Users/shins/projects/colored-logcat && cargo clean 2>&1 && cargo build 2>&1)",
+      "Bash(head:*)",
+      "Bash(export PATH=\"$HOME/.cargo/bin:$HOME/.rustup/toolchains/stable-x86_64-pc-windows-gnu/lib/rustlib/x86_64-pc-windows-gnu/bin/self-contained:$PATH\" && cd /c/Users/shins/projects/colored-logcat && cargo clean 2>&1 && cargo build 2>&1)",
+      "Bash(winget:*)",
+      "Bash(export PATH=\"$HOME/.cargo/bin:$PATH\" && rustup default stable-x86_64-pc-windows-msvc 2>&1)",
+      "Bash(cd /c/Users/shins/projects/colored-logcat && gh repo create colored-logcat --public --source=. --push --description \"A blazing-fast TUI for Android logcat, built in Rust\" 2>&1)",
+      "Bash(cd /c/Users/shins/projects/colored-logcat && git add README.md && git commit -m \"$\\(cat <<'EOF'\nUpdate README with project rationale\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\" && git push 2>&1)",
+      "Bash(cd /c/Users/shins/projects/colored-logcat && git add screenshots/colored-logcat-demo.png README.md && git commit -m \"$\\(cat <<'EOF'\nAdd screenshot to README\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\" && git push 2>&1)",
+      "Bash(git config:*)",
+      "Bash(cd /c/Users/shins/projects/colored-logcat && git branch -m production main && git push -u origin main 2>&1)",
+      "Bash(cd /c/Users/shins/projects/colored-logcat && gh repo edit --default-branch main 2>&1 && git push origin --delete production 2>&1)"
+    ]
+  }
+}
