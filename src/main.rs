@@ -24,6 +24,8 @@ use ratatui::Terminal;
 use app::{App, InputMode};
 use parser::LogLevel;
 
+const MOUSE_SCROLL_LINES: usize = 1;
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Setup terminal
     enable_raw_mode()?;
@@ -87,7 +89,7 @@ fn run_app(
     let mut last_pid_poll = Instant::now();
     let pid_poll_interval = Duration::from_secs(2);
 
-    loop {
+    'app_loop: loop {
         // Drain all available log entries (batched for performance)
         let mut new_entries = 0;
         while let Ok(msg) = rx.try_recv() {
@@ -123,36 +125,14 @@ fn run_app(
 
         // Handle input events
         if event::poll(Duration::from_millis(16))? {
-            match event::read()? {
-                Event::Key(key) => {
-                    if key.kind != KeyEventKind::Press {
-                        continue;
-                    }
+            if handle_event(&mut app, event::read()?) {
+                break;
+            }
 
-                    // Global quit
-                    if key.modifiers.contains(KeyModifiers::CONTROL)
-                        && key.code == KeyCode::Char('c')
-                    {
-                        break;
-                    }
-
-                    match app.input_mode {
-                        InputMode::Normal => handle_normal_key(&mut app, key.code),
-                        InputMode::Filter | InputMode::Tag | InputMode::Package => {
-                            handle_input_key(&mut app, key.code);
-                        }
-                    }
-
-                    if app.should_quit {
-                        break;
-                    }
+            while event::poll(Duration::from_millis(0))? {
+                if handle_event(&mut app, event::read()?) {
+                    break 'app_loop;
                 }
-                Event::Mouse(mouse) => {
-                    if matches!(app.input_mode, InputMode::Normal) {
-                        handle_mouse(&mut app, mouse.kind);
-                    }
-                }
-                _ => {}
             }
         }
     }
@@ -163,19 +143,50 @@ fn run_app(
 fn handle_mouse(app: &mut App, kind: MouseEventKind) {
     match kind {
         // Scroll up to pause and browse older logs.
-        MouseEventKind::ScrollUp => app.scroll_up(3),
+        MouseEventKind::ScrollUp => app.scroll_up(MOUSE_SCROLL_LINES),
         // Scroll down toward live tailing. At offset 0, stream follows again.
-        MouseEventKind::ScrollDown => app.scroll_down(3),
+        MouseEventKind::ScrollDown => app.scroll_down(MOUSE_SCROLL_LINES),
         // Quick follow: right-click jumps to bottom and resumes tailing.
         MouseEventKind::Down(MouseButton::Right) => app.scroll_to_bottom(),
         _ => {}
     }
 }
 
+fn handle_event(app: &mut App, event: Event) -> bool {
+    match event {
+        Event::Key(key) => {
+            if key.kind != KeyEventKind::Press {
+                return false;
+            }
+
+            // Global quit
+            if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+                return true;
+            }
+
+            match app.input_mode {
+                InputMode::Normal => handle_normal_key(app, key.code),
+                InputMode::Filter | InputMode::Tag | InputMode::Package => {
+                    handle_input_key(app, key.code);
+                }
+            }
+
+            app.should_quit
+        }
+        Event::Mouse(mouse) => {
+            if matches!(app.input_mode, InputMode::Normal) {
+                handle_mouse(app, mouse.kind);
+            }
+            false
+        }
+        _ => false,
+    }
+}
+
 fn handle_normal_key(app: &mut App, key: KeyCode) {
     match key {
         KeyCode::Char('q') => app.should_quit = true,
-        KeyCode::Char('?') => app.show_help = !app.show_help,
+        KeyCode::Char('h') | KeyCode::Char('?') => app.show_help = !app.show_help,
 
         // Filter modes
         KeyCode::Char('/') => {

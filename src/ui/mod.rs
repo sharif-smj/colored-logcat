@@ -5,7 +5,7 @@ pub mod help;
 pub mod log_view;
 pub mod status_bar;
 
-use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::Frame;
 
 use crate::app::{App, PanelLayout};
@@ -26,16 +26,37 @@ pub fn render(f: &mut Frame, app: &App) {
     filter_bar::render(f, main_chunks[0], app);
     status_bar::render(f, main_chunks[2], app);
 
+    let content_area = main_chunks[1];
+
+    if app.show_help {
+        if content_area.width >= 90 {
+            let chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Min(30), Constraint::Length(44)])
+                .split(content_area);
+
+            render_content(f, chunks[0], app);
+            help::render_sidebar(f, chunks[1]);
+        } else {
+            render_content(f, content_area, app);
+            help::render_overlay(f, size);
+        }
+    } else {
+        render_content(f, content_area, app);
+    }
+}
+
+fn render_content(f: &mut Frame, area: Rect, app: &App) {
     // Content area depends on panel layout
     match app.panels {
         PanelLayout::Single => {
-            log_view::render(f, main_chunks[1], app);
+            log_view::render(f, area, app);
         }
         PanelLayout::SplitCrash => {
             let h_chunks = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
-                .split(main_chunks[1]);
+                .split(area);
 
             log_view::render(f, h_chunks[0], app);
             crash_panel::render(f, h_chunks[1], app);
@@ -44,15 +65,10 @@ pub fn render(f: &mut Frame, app: &App) {
             let h_chunks = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Min(40), Constraint::Length(35)])
-                .split(main_chunks[1]);
+                .split(area);
 
             log_view::render(f, h_chunks[0], app);
             device_panel::render(f, h_chunks[1], app);
         }
-    }
-
-    // Help overlay
-    if app.show_help {
-        help::render(f, size);
     }
 }

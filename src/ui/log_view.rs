@@ -45,10 +45,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
 
     let lines: Vec<Line> = app.filtered_indices[start..end]
         .iter()
-        .map(|&idx| {
-            let entry = &app.logs[idx];
-            render_entry(entry)
-        })
+        .filter_map(|&idx| app.entry_at(idx).map(render_entry))
         .collect();
 
     let title = if app.scroll_offset > 0 {
@@ -87,12 +84,8 @@ fn render_entry(entry: &crate::parser::LogEntry) -> Line<'static> {
     ];
 
     // Check for JSON in message
-    if json::detect_json(&entry.message) {
-        if let Some(json_spans) = json::json_spans(&entry.message) {
-            spans.extend(json_spans);
-        } else {
-            spans.push(Span::styled(entry.message.clone(), Style::default().fg(color)));
-        }
+    if let Some(pretty_json) = entry.pretty_json.as_deref() {
+        spans.extend(json::colorize_json(pretty_json));
     } else {
         spans.push(Span::styled(entry.message.clone(), Style::default().fg(color)));
     }
@@ -107,10 +100,7 @@ pub fn render_crash_panel(f: &mut Frame, area: Rect, app: &App) {
 
     let lines: Vec<Line> = app.crash_indices[start..]
         .iter()
-        .map(|&idx| {
-            let entry = &app.logs[idx];
-            render_entry(entry)
-        })
+        .filter_map(|&idx| app.entry_at(idx).map(render_entry))
         .collect();
 
     let title = format!(" Crashes/ANRs [{}] ", total);

@@ -1,20 +1,7 @@
 use ratatui::style::{Color, Style};
 use ratatui::text::Span;
-use serde_json::Value;
 
-pub fn detect_json(msg: &str) -> bool {
-    let trimmed = msg.trim_start();
-    trimmed.starts_with('{') || trimmed.starts_with('[')
-}
-
-pub fn json_spans(msg: &str) -> Option<Vec<Span<'static>>> {
-    let trimmed = msg.trim_start();
-    let value: Value = serde_json::from_str(trimmed).ok()?;
-    let pretty = serde_json::to_string_pretty(&value).ok()?;
-    Some(colorize_json(&pretty))
-}
-
-fn colorize_json(text: &str) -> Vec<Span<'static>> {
+pub fn colorize_json(text: &str) -> Vec<Span<'static>> {
     let mut spans = Vec::new();
     let chars: Vec<char> = text.chars().collect();
     let len = chars.len();

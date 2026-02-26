@@ -1,4 +1,5 @@
 use regex::Regex;
+use serde_json::Value;
 use std::fmt;
 use std::sync::LazyLock;
 
@@ -56,6 +57,7 @@ pub struct LogEntry {
     pub level: LogLevel,
     pub tag: String,
     pub message: String,
+    pub pretty_json: Option<String>,
 }
 
 static LOGCAT_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -71,6 +73,8 @@ impl LogEntry {
         let level_char = caps[4].chars().next()?;
         let level = LogLevel::from_char(level_char)?;
 
+        let message = caps[6].to_string();
+
         Some(LogEntry {
             raw: line.to_string(),
             timestamp: caps[1].to_string(),
@@ -78,7 +82,18 @@ impl LogEntry {
             tid: caps[3].parse().ok()?,
             level,
             tag: caps[5].trim().to_string(),
-            message: caps[6].to_string(),
+            pretty_json: parse_pretty_json(&message),
+            message,
         })
     }
+}
+
+fn parse_pretty_json(message: &str) -> Option<String> {
+    let trimmed = message.trim_start();
+    if !(trimmed.starts_with('{') || trimmed.starts_with('[')) {
+        return None;
+    }
+
+    let value: Value = serde_json::from_str(trimmed).ok()?;
+    serde_json::to_string_pretty(&value).ok()
 }

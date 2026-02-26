@@ -24,7 +24,7 @@ Enter **colored-logcat**: a terminal-native TUI that brings all the Android Stud
 - **Multi-panel layout** — split view with crash/ANR panel or device list sidebar
 - **Export** — save filtered logs to a timestamped file
 - **Crash monitoring** — dedicated panel for crashes, ANRs, and fatal errors
-- **Tiny footprint** — ~1.6MB release binary, ~100k entry ring buffer
+- **Tiny footprint** — ~1.6MB release binary, 250k entry ring buffer by default
 
 ## Requirements
 
@@ -49,11 +49,19 @@ cp target/release/colored-logcat.exe ~/.cargo/bin/
 colored-logcat
 ```
 
+Optional: set a larger/smaller in-memory buffer (clamped between 10k and 2M).
+
+```bash
+# PowerShell
+$env:COLORED_LOGCAT_MAX_ENTRIES="500000"
+colored-logcat
+```
+
 ## Keybindings
 
 | Key | Action |
 |-----|--------|
-| `?` | Show help overlay |
+| `h` / `?` | Toggle command help panel |
 | `/` | Filter by regex pattern |
 | `t` | Filter by tag |
 | `p` | Filter by package name |
