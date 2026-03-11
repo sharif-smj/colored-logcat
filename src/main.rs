@@ -1,5 +1,6 @@
 mod adb;
 mod app;
+mod clipboard;
 mod export;
 mod filter;
 mod json;
@@ -19,6 +20,7 @@ use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use ratatui::backend::CrosstermBackend;
+use ratatui::layout::Rect;
 use ratatui::Terminal;
 
 use app::{App, InputMode};
@@ -75,9 +77,11 @@ fn run_app(
                             }
                         }
                         Event::Mouse(mouse) => {
-                            if mouse.kind == MouseEventKind::Down(MouseButton::Right) {
-                                app.scroll_to_bottom();
-                            }
+                            let terminal_size = terminal.size()?;
+                            let terminal_area =
+                                Rect::new(0, 0, terminal_size.width, terminal_size.height);
+                            let log_area = ui::log_view_area(terminal_area, &app);
+                            handle_mouse(&mut app, mouse, log_area);
                         }
                         _ => {}
                     }
@@ -125,12 +129,24 @@ fn run_app(
 
         // Handle input events
         if event::poll(Duration::from_millis(16))? {
-            if handle_event(&mut app, event::read()?) {
+            let terminal_size = terminal.size()?;
+            let terminal_area = Rect::new(0, 0, terminal_size.width, terminal_size.height);
+            let log_area = ui::log_view_area(terminal_area, &app);
+            if handle_event_with_area(
+                &mut app,
+                event::read()?,
+                log_area,
+            ) {
                 break;
             }
 
             while event::poll(Duration::from_millis(0))? {
-                if handle_event(&mut app, event::read()?) {
+                let log_area = ui::log_view_area(terminal_area, &app);
+                if handle_event_with_area(
+                    &mut app,
+                    event::read()?,
+                    log_area,
+                ) {
                     break 'app_loop;
                 }
             }
@@ -139,9 +155,34 @@ fn run_app(
 
     Ok(())
 }
+fn handle_mouse(app: &mut App, mouse: crossterm::event::MouseEvent, log_area: ratatui::layout::Rect) {
+    if let Some(absolute_idx) = mouse_log_entry(app, mouse.column, mouse.row, log_area) {
+        match mouse.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                app.pause_tailing();
+                app.begin_selection(absolute_idx);
+                return;
+            }
+            MouseEventKind::Drag(MouseButton::Left) => {
+                if app.mouse_selecting {
+                    app.update_selection(absolute_idx);
+                }
+                return;
+            }
+            MouseEventKind::Up(MouseButton::Left) => {
+                if app.mouse_selecting {
+                    app.update_selection(absolute_idx);
+                    app.finish_selection();
+                }
+                return;
+            }
+            _ => {}
+        }
+    } else if matches!(mouse.kind, MouseEventKind::Up(MouseButton::Left)) {
+        app.finish_selection();
+    }
 
-fn handle_mouse(app: &mut App, kind: MouseEventKind) {
-    match kind {
+    match mouse.kind {
         // Scroll up to pause and browse older logs.
         MouseEventKind::ScrollUp => app.scroll_up(MOUSE_SCROLL_LINES),
         // Scroll down toward live tailing. At offset 0, stream follows again.
@@ -152,7 +193,7 @@ fn handle_mouse(app: &mut App, kind: MouseEventKind) {
     }
 }
 
-fn handle_event(app: &mut App, event: Event) -> bool {
+fn handle_event_with_area(app: &mut App, event: Event, log_area: ratatui::layout::Rect) -> bool {
     match event {
         Event::Key(key) => {
             if key.kind != KeyEventKind::Press {
@@ -165,7 +206,7 @@ fn handle_event(app: &mut App, event: Event) -> bool {
             }
 
             match app.input_mode {
-                InputMode::Normal => handle_normal_key(app, key.code),
+                InputMode::Normal => handle_normal_key(app, key),
                 InputMode::Filter | InputMode::Tag | InputMode::Package => {
                     handle_input_key(app, key.code);
                 }
@@ -175,7 +216,7 @@ fn handle_event(app: &mut App, event: Event) -> bool {
         }
         Event::Mouse(mouse) => {
             if matches!(app.input_mode, InputMode::Normal) {
-                handle_mouse(app, mouse.kind);
+                handle_mouse(app, mouse, log_area);
             }
             false
         }
@@ -183,10 +224,11 @@ fn handle_event(app: &mut App, event: Event) -> bool {
     }
 }
 
-fn handle_normal_key(app: &mut App, key: KeyCode) {
-    match key {
+fn handle_normal_key(app: &mut App, key: crossterm::event::KeyEvent) {
+    match key.code {
         KeyCode::Char('q') => app.should_quit = true,
         KeyCode::Char('h') | KeyCode::Char('?') => app.show_help = !app.show_help,
+        KeyCode::Char('y') => app.copy_selection(),
 
         // Filter modes
         KeyCode::Char('/') => {
@@ -212,9 +254,8 @@ fn handle_normal_key(app: &mut App, key: KeyCode) {
 
         // Scrolling
         KeyCode::Char(' ') => {
-            if app.scroll_offset == 0 {
-                // Start paused at current position
-                app.scroll_offset = 1;
+            if app.tailing {
+                app.pause_tailing();
             } else {
                 app.scroll_to_bottom();
             }
@@ -236,6 +277,9 @@ fn handle_normal_key(app: &mut App, key: KeyCode) {
         KeyCode::Esc => {
             if app.show_help {
                 app.show_help = false;
+            } else if app.selection.is_some() {
+                app.clear_selection();
+                app.status_message = Some("Selection cleared".to_string());
             } else {
                 app.clear_all_filters();
                 app.status_message = Some("Filters cleared".to_string());
@@ -244,6 +288,20 @@ fn handle_normal_key(app: &mut App, key: KeyCode) {
 
         _ => {}
     }
+}
+
+fn mouse_log_entry(app: &App, column: u16, row: u16, log_area: ratatui::layout::Rect) -> Option<usize> {
+    if column <= log_area.x
+        || column >= log_area.x + log_area.width.saturating_sub(1)
+        || row <= log_area.y
+        || row >= log_area.y + log_area.height.saturating_sub(1)
+    {
+        return None;
+    }
+
+    let inner_height = log_area.height.saturating_sub(2) as usize;
+    let content_row = row.saturating_sub(log_area.y + 1) as usize;
+    app.visible_entry_at_row(inner_height, content_row)
 }
 
 fn handle_input_key(app: &mut App, key: KeyCode) {

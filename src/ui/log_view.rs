@@ -32,26 +32,20 @@ fn level_style(level: LogLevel) -> Style {
 pub fn render(f: &mut Frame, area: Rect, app: &App) {
     let height = area.height.saturating_sub(2) as usize; // block borders
     let total = app.filtered_indices.len();
-
-    let (start, end) = if app.scroll_offset == 0 {
-        // Tailing: show last `height` entries
-        let start = total.saturating_sub(height);
-        (start, total)
-    } else {
-        let end = total.saturating_sub(app.scroll_offset);
-        let start = end.saturating_sub(height);
-        (start, end)
-    };
+    let (start, end) = app.visible_bounds(height);
 
     let lines: Vec<Line> = app.filtered_indices[start..end]
         .iter()
-        .filter_map(|&idx| app.entry_at(idx).map(render_entry))
+        .filter_map(|&idx| {
+            app.entry_at(idx)
+                .map(|entry| render_entry(entry, app.selection_contains(idx)))
+        })
         .collect();
 
-    let title = if app.scroll_offset > 0 {
-        format!(" Logs [{}/{} | PAUSED] ", end, total)
-    } else {
+    let title = if app.tailing {
         format!(" Logs [{} | TAILING] ", total)
+    } else {
+        format!(" Logs [{}/{} | PAUSED] ", end, total)
     };
 
     let block = Block::default()
@@ -63,7 +57,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     f.render_widget(paragraph, area);
 }
 
-fn render_entry(entry: &crate::parser::LogEntry) -> Line<'static> {
+fn render_entry(entry: &crate::parser::LogEntry, selected: bool) -> Line<'static> {
     let color = level_color(entry.level);
     let lstyle = level_style(entry.level);
 
@@ -90,7 +84,15 @@ fn render_entry(entry: &crate::parser::LogEntry) -> Line<'static> {
         spans.push(Span::styled(entry.message.clone(), Style::default().fg(color)));
     }
 
-    Line::from(spans)
+    let mut line = Line::from(spans);
+    if selected {
+        line = line.patch_style(
+            Style::default()
+                .bg(Color::Rgb(42, 76, 132))
+                .add_modifier(Modifier::BOLD),
+        );
+    }
+    line
 }
 
 pub fn render_crash_panel(f: &mut Frame, area: Rect, app: &App) {
@@ -100,7 +102,7 @@ pub fn render_crash_panel(f: &mut Frame, area: Rect, app: &App) {
 
     let lines: Vec<Line> = app.crash_indices[start..]
         .iter()
-        .filter_map(|&idx| app.entry_at(idx).map(render_entry))
+        .filter_map(|&idx| app.entry_at(idx).map(|entry| render_entry(entry, false)))
         .collect();
 
     let title = format!(" Crashes/ANRs [{}] ", total);

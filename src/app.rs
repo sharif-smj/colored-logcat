@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::env;
 
 use crate::adb;
+use crate::clipboard;
 use crate::export;
 use crate::filter::{is_crash_entry, FilterSet};
 use crate::parser::{LogEntry, LogLevel};
@@ -31,6 +32,12 @@ pub struct LogStats {
     pub errors: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LogSelection {
+    pub anchor: usize,
+    pub focus: usize,
+}
+
 pub struct App {
     pub logs: VecDeque<LogEntry>,
     pub filtered_indices: Vec<usize>, // absolute indices
@@ -38,7 +45,10 @@ pub struct App {
     pub filters: FilterSet,
     pub input_mode: InputMode,
     pub filter_input: String,
+    pub tailing: bool,
     pub scroll_offset: usize,
+    pub selection: Option<LogSelection>,
+    pub mouse_selecting: bool,
     pub panels: PanelLayout,
     pub show_help: bool,
     pub device_list: Vec<String>,
@@ -62,7 +72,10 @@ impl App {
             filters: FilterSet::default(),
             input_mode: InputMode::Normal,
             filter_input: String::new(),
+            tailing: true,
             scroll_offset: 0,
+            selection: None,
+            mouse_selecting: false,
             panels: PanelLayout::Single,
             show_help: false,
             device_list: Vec::new(),
@@ -109,10 +122,11 @@ impl App {
 
         // Keep paused viewport anchored to the same entries.
         // Without this, newly appended matching logs shift a paused view forward.
-        if self.scroll_offset > 0 && matches_filter {
+        if !self.tailing && matches_filter {
             self.scroll_offset = self.scroll_offset.saturating_add(1);
         }
 
+        self.clear_selection_if_stale();
         self.clamp_scroll_offset();
     }
 
@@ -124,24 +138,35 @@ impl App {
             }
         }
         // Keep crash indices as-is (they don't depend on user filters)
+        self.clear_selection();
         self.clamp_scroll_offset();
     }
 
     pub fn scroll_up(&mut self, amount: usize) {
+        self.tailing = false;
         let max = self.filtered_indices.len().saturating_sub(1);
         self.scroll_offset = (self.scroll_offset + amount).min(max);
     }
 
     pub fn scroll_down(&mut self, amount: usize) {
         self.scroll_offset = self.scroll_offset.saturating_sub(amount);
+        if self.scroll_offset == 0 {
+            self.tailing = true;
+        }
     }
 
     pub fn scroll_to_top(&mut self) {
+        self.tailing = false;
         self.scroll_offset = self.filtered_indices.len().saturating_sub(1);
     }
 
     pub fn scroll_to_bottom(&mut self) {
+        self.tailing = true;
         self.scroll_offset = 0;
+    }
+
+    pub fn pause_tailing(&mut self) {
+        self.tailing = false;
     }
 
     pub fn entry_at(&self, absolute_idx: usize) -> Option<&LogEntry> {
@@ -206,7 +231,9 @@ impl App {
         self.filtered_indices.clear();
         self.crash_indices.clear();
         self.stats = LogStats::default();
+        self.tailing = true;
         self.scroll_offset = 0;
+        self.clear_selection();
         self.log_base_index = 0;
         self.status_message = Some("Buffer cleared".to_string());
     }
@@ -261,9 +288,119 @@ impl App {
         }
     }
 
+    pub fn visible_bounds(&self, height: usize) -> (usize, usize) {
+        let total = self.filtered_indices.len();
+
+        if self.tailing {
+            let start = total.saturating_sub(height);
+            (start, total)
+        } else {
+            let end = total.saturating_sub(self.scroll_offset);
+            let start = end.saturating_sub(height);
+            (start, end)
+        }
+    }
+
+    pub fn visible_entry_at_row(&self, height: usize, row: usize) -> Option<usize> {
+        let (start, end) = self.visible_bounds(height);
+        if row >= end.saturating_sub(start) {
+            return None;
+        }
+        self.filtered_indices.get(start + row).copied()
+    }
+
+    pub fn begin_selection(&mut self, absolute_idx: usize) {
+        self.selection = Some(LogSelection {
+            anchor: absolute_idx,
+            focus: absolute_idx,
+        });
+        self.mouse_selecting = true;
+    }
+
+    pub fn update_selection(&mut self, absolute_idx: usize) {
+        if let Some(selection) = &mut self.selection {
+            selection.focus = absolute_idx;
+        }
+    }
+
+    pub fn finish_selection(&mut self) {
+        self.mouse_selecting = false;
+    }
+
+    pub fn clear_selection(&mut self) {
+        self.selection = None;
+        self.mouse_selecting = false;
+    }
+
+    pub fn selection_contains(&self, absolute_idx: usize) -> bool {
+        self.selected_absolute_bounds()
+            .map(|(start, end)| (start..=end).contains(&absolute_idx))
+            .unwrap_or(false)
+    }
+
+    pub fn selected_count(&self) -> usize {
+        self.selected_positions()
+            .map(|(start, end)| end.saturating_sub(start))
+            .unwrap_or(0)
+    }
+
+    pub fn copy_selection(&mut self) {
+        let Some((start, end)) = self.selected_positions() else {
+            self.status_message = Some("Select one or more log lines first".to_string());
+            return;
+        };
+
+        let text = self.filtered_indices[start..end]
+            .iter()
+            .filter_map(|&idx| self.entry_at(idx).map(|entry| entry.raw.as_str()))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        match clipboard::copy_text(&text) {
+            Ok(()) => {
+                let count = end - start;
+                let suffix = if count == 1 { "" } else { "s" };
+                self.status_message = Some(format!("Copied {} log line{} to clipboard", count, suffix));
+            }
+            Err(error) => {
+                self.status_message = Some(format!("Clipboard copy failed: {}", error));
+            }
+        }
+    }
+
     fn clamp_scroll_offset(&mut self) {
         let max = self.filtered_indices.len().saturating_sub(1);
         self.scroll_offset = self.scroll_offset.min(max);
+        if self.tailing {
+            self.scroll_offset = 0;
+        }
+    }
+
+    fn clear_selection_if_stale(&mut self) {
+        let Some(selection) = self.selection else {
+            return;
+        };
+
+        if selection.anchor < self.log_base_index || selection.focus < self.log_base_index {
+            self.clear_selection();
+        }
+    }
+
+    fn selected_absolute_bounds(&self) -> Option<(usize, usize)> {
+        self.selection.map(|selection| {
+            if selection.anchor <= selection.focus {
+                (selection.anchor, selection.focus)
+            } else {
+                (selection.focus, selection.anchor)
+            }
+        })
+    }
+
+    fn selected_positions(&self) -> Option<(usize, usize)> {
+        let (start_abs, end_abs) = self.selected_absolute_bounds()?;
+        let start = self.filtered_indices.partition_point(|&idx| idx < start_abs);
+        let end = self.filtered_indices.partition_point(|&idx| idx <= end_abs);
+        (start < end).then_some((start, end))
     }
 }
 

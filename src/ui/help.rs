@@ -24,6 +24,7 @@ const HELP_LINES: &[(&str, &str)] = &[
     ("↑/↓ or j/k", "Scroll line-by-line"),
     ("PgUp / PgDn", "Page scroll"),
     ("Mouse wheel", "Scroll logs (up pauses tailing)"),
+    ("Left drag", "Select log lines"),
     ("Right click", "Jump to bottom / resume tail"),
     ("Home", "Jump to top"),
     ("End / G", "Jump to bottom / tail"),
@@ -31,6 +32,7 @@ const HELP_LINES: &[(&str, &str)] = &[
     ("--- Panels/Actions ---", ""),
     ("x", "Toggle crash/ANR panel"),
     ("d", "Toggle device panel"),
+    ("y", "Copy selected log lines"),
     ("s", "Save visible logs"),
     ("c", "Clear logcat buffer"),
 ];

@@ -46,6 +46,39 @@ pub fn render(f: &mut Frame, app: &App) {
     }
 }
 
+pub fn log_view_area(size: Rect, app: &App) -> Rect {
+    let main_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2),
+            Constraint::Min(5),
+            Constraint::Length(1),
+        ])
+        .split(size);
+
+    let content_area = main_chunks[1];
+    let content_area = if app.show_help && content_area.width >= 90 {
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Min(30), Constraint::Length(44)])
+            .split(content_area)[0]
+    } else {
+        content_area
+    };
+
+    match app.panels {
+        PanelLayout::Single => content_area,
+        PanelLayout::SplitCrash => Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
+            .split(content_area)[0],
+        PanelLayout::SplitDevice => Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Min(40), Constraint::Length(35)])
+            .split(content_area)[0],
+    }
+}
+
 fn render_content(f: &mut Frame, area: Rect, app: &App) {
     // Content area depends on panel layout
     match app.panels {

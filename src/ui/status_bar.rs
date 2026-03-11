@@ -42,7 +42,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     }
 
     // Tailing/Paused state
-    if app.scroll_offset > 0 {
+    if !app.tailing {
         spans.push(Span::styled(
             " │ PAUSED",
             Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
@@ -51,6 +51,18 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         spans.push(Span::styled(
             " │ TAILING",
             Style::default().fg(Color::Green),
+        ));
+    }
+
+    let selected = app.selected_count();
+    if selected > 0 {
+        spans.push(Span::styled(
+            format!(" │ {} selected", selected),
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::styled(
+            " (press y to copy)",
+            Style::default().fg(Color::Cyan),
         ));
     }
 
@@ -63,7 +75,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     }
 
     // Keybind hints (right-aligned via padding)
-    let hints = " h:help /:filter t:tag p:pkg wheel:scroll right-click:follow ";
+    let hints = " h:help /:filter t:tag p:pkg drag:select y:copy wheel:scroll ";
     let hints_len = hints.len() as u16;
     let spans_text_len: u16 = spans.iter().map(|s| s.content.len() as u16).sum();
     let padding = area.width.saturating_sub(spans_text_len + hints_len);

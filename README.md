@@ -21,6 +21,7 @@ Enter **colored-logcat**: a terminal-native TUI that brings all the Android Stud
 - **Package filtering** — filter by app package name with automatic PID resolution
 - **JSON syntax highlighting** — detects JSON in log messages and colorizes keys, strings, numbers, booleans
 - **Scrollback & freeze** — pause the stream, scroll through history, resume tailing
+- **Selection & copy** — drag across visible log lines to highlight them, then copy them to the system clipboard
 - **Multi-panel layout** — split view with crash/ANR panel or device list sidebar
 - **Export** — save filtered logs to a timestamped file
 - **Crash monitoring** — dedicated panel for crashes, ANRs, and fatal errors
@@ -70,9 +71,11 @@ colored-logcat
 | `j`/`k` or `↑`/`↓` | Scroll (when paused) |
 | `PgUp` / `PgDn` | Page scroll |
 | Mouse wheel | Scroll logs (scroll up pauses tailing) |
+| Left drag | Highlight visible log lines |
 | Right click | Jump to bottom / resume tail |
 | `Home` | Jump to top |
 | `End` / `G` | Jump to bottom / resume tailing |
+| `y` | Copy selected log lines to clipboard |
 | `x` | Toggle crash/ANR panel |
 | `d` | Toggle device panel |
 | `s` | Save visible logs to file |
